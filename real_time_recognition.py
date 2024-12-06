@@ -8,26 +8,33 @@ import tkinter as tk
 from tkinter import messagebox
 
 
-
 class RealtimeRecognition:
     def __init__(self, root):
         self.root = root
-        self.real_time_frame = tk.Frame(root)
-        self.current_frame = None
+        self.real_time_frame = tk.Frame(root.root)
+
         self.face_info_saved = False
         self.face_id = None  
         self.face_name = None
+        
+        self.stop_recognition_button = None
 
         self.images_dir = './images/'
         self.cascade_classifier_filename = 'haarcascade_frontalface_default.xml'
         self.names_json_filename = 'names.json'
         self.trainer_filename = 'trainer.yml'
+        self.create_directory(self.images_dir) ## Create image dictionary if not exist
+
         self.count = 0
 
-        self.create_directory(self.images_dir) ## Create image dictionary if not exist
         self.camera_label = None
         self.cap = None
         self.running = False
+
+    def create_button(self, parent, text, command):
+        button = tk.Button(parent, text=text, font=("Helvetica", 14), bg="#4CAF50", fg="white", relief="flat", width=20, height=2, command=command)
+        button.pack(pady=15)
+        button.config(activebackground="#45a049", activeforeground="white")
 
     def create_directory(self, directory: str) -> None:
         if not os.path.exists(directory):
@@ -65,40 +72,42 @@ class RealtimeRecognition:
         self.switch_frame(self.real_time_frame)
         self.setup_real_time_ui()
 
-    def show_image_recognition(self):
-        self.switch_frame(self.image_recognition_frame)
-        self.setup_image_recognition_ui()
-
     def switch_frame(self, frame):
-        if self.current_frame:
-            self.current_frame.pack_forget()
-        self.current_frame = frame
-        frame.pack()
+        if self.root.main_menu.winfo_ismapped():
+            self.root.main_menu.pack_forget()
+        frame.pack(fill="both", expand=True)    
 
     def setup_real_time_ui(self):
         if not self.camera_label:
             self.camera_label = tk.Label(self.real_time_frame)
             self.camera_label.pack()
 
-        tk.Label(self.real_time_frame, text="Enter Name:", font=("Arial", 14)).pack(pady=10)
-        self.name_entry = tk.Entry(self.real_time_frame, font=("Arial", 14))
-        self.name_entry.pack(pady=5)
+        self.stop_recognition_button = tk.Button(self.real_time_frame, text = "Stop recognition", font= ("Helvetica", 14), bg="#4CAF50", fg="white", relief="flat", width=20, height=2, command= self.stop_recognition)
+        self.stop_recognition_button.config(activebackground="#45a049", activeforeground="white")
 
-        tk.Button(self.real_time_frame, text="Start Detection", command=self.start_camera).pack(pady=10)
-        tk.Button(self.real_time_frame, text="Recognize", command=self.start_recognition).pack(pady=10)
-        tk.Button(self.real_time_frame, text="Back to Menu", command=lambda: self.stop_camera(self.main_menu)).pack(pady=10)
+        tk.Label(self.real_time_frame, text="Enter Name:", font=("Arial", 14)).pack(pady=10)
+
+        self.name_entry = tk.Entry(self.real_time_frame, font=("Helvetica", 20), width=20 , bd=2, relief="solid")
+        self.name_entry.pack(pady=15)
+
+        self.create_button(self.real_time_frame, "Start Detection" ,self.start_camera)
+        self.create_button(self.real_time_frame, "Recognize", self.start_recognition)
+        self.create_button(self.real_time_frame, "Back to Menu", self.back_to_main_menu)
 
     def start_camera(self):
         self.cap = cv2.VideoCapture(0)
         self.running = True
         self.update_camera()
 
-    def stop_camera(self, next_frame):
+    def back_to_main_menu(self):
         if self.cap:
             self.running = False
             self.cap.release()
             self.camera_label.config(image="")
-        self.switch_frame(next_frame)
+            cv2.destroyAllWindows()
+
+        if hasattr(self.root, 'switch_to_main_menu'):
+            self.root.switch_to_main_menu()
 
     def update_camera(self):
         if not self.face_info_saved:
@@ -129,8 +138,12 @@ class RealtimeRecognition:
                     return
 
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frame = cv2.resize(frame, (200, 200))
+                frame = cv2.resize(frame, (400, 300))
                 img = ImageTk.PhotoImage(Image.fromarray(frame))
+                
+                if not self.camera_label:
+                    self.camera_label = tk.Label(self.real_time_frame)
+                    self.camera_label.pack(pady=10)
                 self.camera_label.config(image=img)
                 self.camera_label.image = img
             
@@ -138,14 +151,13 @@ class RealtimeRecognition:
 
     def on_capture_complete(self):
         messagebox.showinfo("Info", f"Captured {self.count} images successfully!")
-
         try:
             self.train_face_recognizer('./images/')
             messagebox.showinfo("Info", "Face recognizer training completed successfully!")
         except Exception as e:
             messagebox.showerror("Error", f"Error during training: {str(e)}")
             
-        self.stop_camera(self.real_time_frame)
+        self.stop_cam(self.real_time_frame)
 
     def train_face_recognizer(self, path: str):
         print("\n[INFO] Training face recognizer...")
@@ -182,19 +194,22 @@ class RealtimeRecognition:
             self.names = names
 
     def start_recognition(self):
-        self.running = True
+
         recognition_thread = threading.Thread(target=self.recognize_real_time)
         recognition_thread.daemon = True  
         recognition_thread.start()
 
     def recognize_real_time(self):
         self.load_resources()
-        print(self.names)
-
+        
+        self.running = True
         self.cap = cv2.VideoCapture(0)
         if not self.cap.isOpened():
             print("Error: Could not access the camera.")
             return
+
+        if self.stop_recognition_button and not self.stop_recognition_button.winfo_ismapped():
+            self.stop_recognition_button.pack(pady=15)
 
         while self.running:
             ret, img = self.cap.read()
@@ -226,18 +241,35 @@ class RealtimeRecognition:
             img = cv2.resize(img, (400, 300))
             img = ImageTk.PhotoImage(Image.fromarray(img))
 
-            if self.camera_label:
-                self.camera_label.config(image=img)
-                self.camera_label.image = img
+
+            if not self.camera_label:
+                self.camera_label = tk.Label(self.real_time_frame)
+                self.camera_label.pack(pady=10)
+            self.camera_label.config(image=img)
+            self.camera_label.image = img
 
             if cv2.waitKey(1) & 0xFF == 27:
                 self.running = False
 
-        self.stop_recognition()
+        # self.stop_recognition()
 
     def stop_recognition(self):
-        self.running = False
         if self.cap:
+            self.running = False
             self.cap.release()
-        cv2.destroyAllWindows()
+            self.camera_label.config(image="")
+            # self.camera_label = None
+            cv2.destroyAllWindows()
+            # self.camera_label.pack_forget()
+        
+        if self.stop_recognition_button and self.stop_recognition_button.winfo_ismapped():
+            self.stop_recognition_button.pack_forget()
 
+    def  stop_cam(self):
+        if self.cap:
+            self.running = False
+            self.cap.release()
+            self.camera_label.config(image="")
+            cv2.destroyAllWindows()
+
+        # self.switch_frame(frame)

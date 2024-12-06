@@ -4,27 +4,43 @@ from tkinter import ttk
 from tkinter import messagebox
 from PIL import Image, ImageTk
 
-from real_time_recognition import RealtimeRecognition 
+from real_time_recognition import RealtimeRecognition
 
 
 class RecognitionApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Face Detection and Recognition System")
+        self.root.geometry("600x400")
+        self.root.config(bg="#F0F0F0")
 
-        self.realtime_recognition = RealtimeRecognition(self.root)
+        self.main_menu = None
+        # self.main_menu.pack(fill="both", expand=True)
 
-        self.main_menu = tk.Frame(root)
-        self.main_menu.pack()
-
-        tk.Label(self.main_menu, text="Choose Mode", font=("Arial", 20)).pack(pady=10)
-        tk.Button(self.main_menu, text="Real-Time Recognition", width=20, command=self.show_real_time).pack(pady=10)
-        tk.Button(self.main_menu, text="Image Recognition", width=20, command=self.show_image_recognition).pack(pady=10)
-
-        self.real_time_frame = tk.Frame(root)
-        self.image_recognition_frame = tk.Frame(root)
+        self.image_recognition_frame = tk.Frame(root)        
+        self.realtime_recognition = RealtimeRecognition(self)
         
+        self.create_main_menu()
+
         self.image_list = []
+
+    def create_main_menu(self):
+        self.main_menu = tk.Frame(root, bg="#F0F0F0")
+        self.main_menu.pack(fill="both", expand=True)
+        tk.Label(self.main_menu, text="Face Detection and Recognition", font=("Helvetica", 24, "bold"), bg="#F0F0F0", fg="#333").pack(pady=20)
+        self.create_button(self.main_menu, "Real-Time Recognition", self.show_real_time)
+        self.create_button(self.main_menu, "Image Recognition", self.show_image_recognition)
+
+    def switch_to_main_menu(self):
+        for widget in self.realtime_recognition.real_time_frame.winfo_children():
+            widget.destroy()
+        self.realtime_recognition.real_time_frame.pack_forget()
+        self.create_main_menu()
+
+    def create_button(self, parent, text, command):
+        button = tk.Button(parent, text=text, font=("Helvetica", 14), bg="#4CAF50", fg="white", relief="flat", width=20, height=2, command=command)
+        button.pack(pady=15)
+        button.config(activebackground="#45a049", activeforeground="white")
 
     def show_real_time(self):
         self.realtime_recognition.show_real_time()
@@ -34,17 +50,19 @@ class RecognitionApp:
         self.setup_image_recognition_ui()
 
     def switch_frame(self, frame):
-        if self.realtime_recognition.current_frame:
-            self.realtime_recognition.current_frame.pack_forget()
-        self.realtime_recognition.current_frame = frame
-        frame.pack()
+        # Hide the current frame if it's visible
+        for widget in self.root.main_menu.winfo_children():
+            widget.pack_forget()
+
+        # Now pack the new frame
+        frame.pack(fill="both", expand=True)
 
     def setup_image_recognition_ui(self):
-        tk.Button(self.image_recognition_frame, text="Upload Images", command=self.upload_images).pack(pady=10)
-        self.image_container = tk.Frame(self.image_recognition_frame)
-        self.image_container.pack(pady=10)
-        tk.Button(self.image_recognition_frame, text="Start Recognition", command=self.recognize_images).pack(pady=10)
-        tk.Button(self.image_recognition_frame, text="Back to Menu", command=lambda: self.switch_frame(self.main_menu)).pack(pady=10)
+        self.create_button(self.image_recognition_frame, "Upload Images", self.upload_images)
+        self.image_container = tk.Frame(self.image_recognition_frame, bg="#F0F0F0")
+        self.image_container.pack(pady=20)
+        self.create_button(self.image_recognition_frame, "Start Recognition", self.recognize_images)
+        self.create_button(self.image_recognition_frame, "Back to Menu", lambda: self.switch_frame(self.main_menu))
 
     def upload_images(self):
         filepaths = filedialog.askopenfilenames(filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")])
@@ -52,13 +70,12 @@ class RecognitionApp:
             img = Image.open(filepath)
             img.thumbnail((100, 100))
             img = ImageTk.PhotoImage(img)
-            lbl = tk.Label(self.image_container, image=img)
+            lbl = tk.Label(self.image_container, image=img, bg="#F0F0F0")
             lbl.image = img
             lbl.pack(side=tk.LEFT, padx=5, pady=5)
             self.image_list.append(filepath)
 
     def recognize_images(self):
-        # Implement image recognition logic here
         print("Starting recognition for uploaded images...")
         for img_path in self.image_list:
             print(f"Recognizing: {img_path}")
