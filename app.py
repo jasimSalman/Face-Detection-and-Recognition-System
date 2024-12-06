@@ -10,12 +10,10 @@ from real_time_recognition import RealtimeRecognition
 class RecognitionApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Recognition App")
+        self.root.title("Face Detection and Recognition System")
 
-        # Create an instance of RealtimeRecognition
         self.realtime_recognition = RealtimeRecognition(self.root)
 
-        # Main menu
         self.main_menu = tk.Frame(root)
         self.main_menu.pack()
 
@@ -23,12 +21,9 @@ class RecognitionApp:
         tk.Button(self.main_menu, text="Real-Time Recognition", width=20, command=self.show_real_time).pack(pady=10)
         tk.Button(self.main_menu, text="Image Recognition", width=20, command=self.show_image_recognition).pack(pady=10)
 
-        # Real-time recognition frame
         self.real_time_frame = tk.Frame(root)
-
-
-        # Image recognition frame
         self.image_recognition_frame = tk.Frame(root)
+        
         self.image_list = []
 
     def show_real_time(self):

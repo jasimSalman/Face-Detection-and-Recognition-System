@@ -24,12 +24,11 @@ class RealtimeRecognition:
         self.trainer_filename = 'trainer.yml'
         self.count = 0
 
-        self.create_directory(self.images_dir)
+        self.create_directory(self.images_dir) ## Create image dictionary if not exist
         self.camera_label = None
         self.cap = None
         self.running = False
 
-    # Function to create directory if not exists
     def create_directory(self, directory: str) -> None:
         if not os.path.exists(directory):
             os.makedirs(directory)
@@ -44,15 +43,11 @@ class RealtimeRecognition:
         return max_user_ids
 
     def save_name(self,face_id: int, face_name: str, filename: str) -> None:
-        """Saves the face ID and corresponding name to a JSON file."""
         names_json = {}
-
-        # If the file does not exist, create an empty one
         if not os.path.exists(filename):
             with open(filename, 'w') as fs:
                 json.dump(names_json, fs, ensure_ascii=False, indent=4)
 
-        # Now try to load it
         if os.path.exists(filename) and os.path.getsize(filename) > 0:
             with open(filename, 'r') as fs:
                 try:
@@ -61,10 +56,8 @@ class RealtimeRecognition:
                     print(f"Error: {filename} contains invalid JSON. Starting with an empty dictionary.")
                     names_json = {}
 
-        # Update the JSON with the new face ID and name
         names_json[str(face_id)] = face_name
 
-        # Save the updated JSON back to the file
         with open(filename, 'w') as fs:
             json.dump(names_json, fs, ensure_ascii=False, indent=4)
 
@@ -108,31 +101,26 @@ class RealtimeRecognition:
         self.switch_frame(next_frame)
 
     def update_camera(self):
-        # If face ID and name are not saved yet
         if not self.face_info_saved:
-            # Get face ID and name only once
             self.face_cascade = cv2.CascadeClassifier(self.cascade_classifier_filename)
             self.face_id = self.get_face_id(self.images_dir)
             self.face_name = self.name_entry.get()
             self.save_name(self.face_id, self.face_name, self.names_json_filename)
-            self.face_info_saved = True  # Mark as saved
-
-
+            self.face_info_saved = True 
 
         if self.running:
             ret, frame = self.cap.read()
             if ret:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.3, minNeighbors=5)
+                faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=5,  minSize=(20, 20))
                 
                 for (x, y, w, h) in faces:
-                    cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+                    cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
                     self.count += 1
                     face_region = gray[y:y + h, x:x + w]
                     face_path = f'./images/Users-{self.face_id}-{self.count}.jpg'
                     cv2.imwrite(face_path, face_region)
 
-                # Stop capturing after 30 images
                 if self.count >= 30:
                     self.running = False
                     self.cap.release()
@@ -140,21 +128,17 @@ class RealtimeRecognition:
                     self.on_capture_complete()
                     return
 
-                # Display frame in Tkinter
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frame = cv2.resize(frame, (400, 300))
+                frame = cv2.resize(frame, (200, 200))
                 img = ImageTk.PhotoImage(Image.fromarray(frame))
                 self.camera_label.config(image=img)
                 self.camera_label.image = img
             
-            # Continue the loop after 10 ms
             self.camera_label.after(10, self.update_camera)
 
     def on_capture_complete(self):
-        """Callback when the face capture process is complete."""
         messagebox.showinfo("Info", f"Captured {self.count} images successfully!")
 
-            # Automatically train the face recognizer
         try:
             self.train_face_recognizer('./images/')
             messagebox.showinfo("Info", "Face recognizer training completed successfully!")
@@ -164,7 +148,6 @@ class RealtimeRecognition:
         self.stop_camera(self.real_time_frame)
 
     def train_face_recognizer(self, path: str):
-        """Trains the face recognizer after capturing faces."""
         print("\n[INFO] Training face recognizer...")
         recognizer = cv2.face.LBPHFaceRecognizer_create()
         detector = cv2.CascadeClassifier(self.cascade_classifier_filename)
@@ -189,26 +172,24 @@ class RealtimeRecognition:
         print(f"\n[INFO] {len(np.unique(ids))} faces trained.")
 
     def load_resources(self):
-        """Load resources (trainer, cascade, and names)."""
         self.recognizer = cv2.face.LBPHFaceRecognizer_create()
-        self.face_cascade = cv2.CascadeClassifier(self.cascade_classifier_filename)
         self.recognizer.read(self.trainer_filename)
+        self.face_cascade = cv2.CascadeClassifier(self.cascade_classifier_filename)
         self.font = cv2.FONT_HERSHEY_SIMPLEX
 
         with open(self.names_json_filename, 'r') as fs:
             names = json.load(fs)
-            self.names = list(names.values())
+            self.names = names
 
     def start_recognition(self):
-        """Start face recognition in a separate thread."""
         self.running = True
         recognition_thread = threading.Thread(target=self.recognize_real_time)
-        recognition_thread.daemon = True  # Allow thread to exit when the main app exits
+        recognition_thread.daemon = True  
         recognition_thread.start()
 
     def recognize_real_time(self):
-        """Real-time face recognition loop."""
         self.load_resources()
+        print(self.names)
 
         self.cap = cv2.VideoCapture(0)
         if not self.cap.isOpened():
@@ -221,39 +202,40 @@ class RealtimeRecognition:
                 break
 
             gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-            faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=5, minSize=(30, 30))
+            faces = self.face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30,30))
 
             for (x, y, w, h) in faces:
                 cv2.rectangle(img, (x, y), (x + w, y + h), (0, 255, 0), 2)
                 id, confidence = self.recognizer.predict(gray[y:y + h, x:x + w])
 
-                if id < len(self.names) and confidence < 50:
-                    name = self.names[id]
+                if confidence < 50:
+                    try:
+                        name = self.names.get(str(id), "Unknown") 
+                        confidence_text = f"{100 - round(confidence)}%"
+                    except Exception as e:
+                        name = "Unknown"
+                        confidence_text = "N/A"
                 else:
-                    name = "Unknown"
+                    name = "Who are you?"
+                    confidence_text = "N/A"
                 
-                confidence_text = f"  {round(confidence)}%"
                 cv2.putText(img, name, (x + 5, y - 5), self.font, 1, (255, 255, 255), 2)
                 cv2.putText(img, confidence_text, (x + 5, y + h - 5), self.font, 1, (255, 255, 0), 1)
 
-            # Convert OpenCV image (BGR) to Tkinter-compatible image (RGB)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img = cv2.resize(img, (400, 300))
             img = ImageTk.PhotoImage(Image.fromarray(img))
 
-            # Update the Tkinter label with the new frame
             if self.camera_label:
                 self.camera_label.config(image=img)
                 self.camera_label.image = img
 
-            # Break the loop if user presses ESC (key code 27)
             if cv2.waitKey(1) & 0xFF == 27:
                 self.running = False
 
         self.stop_recognition()
 
     def stop_recognition(self):
-        """Stop the face recognition process."""
         self.running = False
         if self.cap:
             self.cap.release()
